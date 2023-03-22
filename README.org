@@ -1,0 +1,37 @@
+* gif-extra
+
+Extra Utils For gif-screencast.
+
+** Installation
+
+Emacs >= 26.1 is required.
+
+*** Manual
+
+Ensure that you have installed required dependencies:
+- ~gif-screencast~ >= 1.2
+
+Download the source code and put it wherever you like, e.g. into =~/.emacs.d/gif-extra/=
+
+#+begin_src shell :eval no
+git clone https://github.com/KarimAziev/gif-extra.git ~/.emacs.d/gif-extra/
+#+end_src
+
+Add the downloaded directory to the load path:
+
+#+begin_src elisp :eval no
+(add-to-list 'load-path "~/.emacs.d/gif-extra/")
+(require 'gif-extra)
+(gif-extra-global-mode)
+#+end_src
+
+#+begin_src elisp :eval no
+(use-package gif-extra
+  :straight (gif-extra
+             :repo "KarimAziev/gif-extra"
+             :type git
+             :host github)
+  :after (gif-screencast)
+  :demand t
+  :config (gif-extra-global-mode))
+#+end_src
