@@ -7,6 +7,7 @@
 ;; Version: 0.1.0
 ;; Keywords: tools, multimedia
 ;; Package-Requires: ((emacs "26.1") (gif-screencast "1.2"))
+;; SPDX-License-Identifier: GPL-3.0-or-later
 
 ;; This file is NOT part of GNU Emacs.
 
@@ -44,6 +45,16 @@
   :group 'gif-extra
   :type 'integer)
 
+(defcustom gif-extra-allow-mode-line-indicator t
+  "Whether to show countdown and duration in mode-line."
+  :group 'gif-extra
+  :type 'boolean)
+
+(defvar gif-extra-seconds-timer nil)
+(defvar gif-extra-duration-seconds 0)
+(defvar gif-extra-countdown-timer nil)
+(defvar gif-extra-countdown 0)
+
 (defun gif-extra-read-directory (prompt)
   "Read directory with PROMPT."
   (let*
@@ -51,7 +62,7 @@
        (dir
         (completing-read prompt
                          (append (list other-dir)
-                                 (mapcar 'abbreviate-file-name
+                                 (mapcar #'abbreviate-file-name
                                          (gif-extra-get-active-buffers-dirs))))))
     (if (string= dir other-dir)
         (read-directory-name prompt)
@@ -88,9 +99,10 @@
       (setq gif-extra-out-record-time (current-time))
     (setq gif-extra-duration
           (when gif-extra-out-record-time
-            (- (time-to-seconds (time-since gif-extra-out-record-time))
-               gif-screencast-countdown)))))
+            (round (- (time-to-seconds (time-since gif-extra-out-record-time))
+                      gif-screencast-countdown))))))
 
+;;;###autoload
 (defun gif-extra-record-out-file ()
   "Set `gif-extra-out-file'."
   (interactive)
@@ -197,31 +209,134 @@
 (defun gif-extra-process-file (file)
   "Read and perfoms actions for new gif FILE."
   (when (> gif-extra-duration gif-extra-minimal-autoopen-duration)
-    (let ((char (car (read-multiple-choice
-                      (format "Open %s?"
-                              file)
-                      '((?y "yes")
-                        (?r "rename")
-                        (?o "rename and open")
-                        (?n "no"))))))
-      (pcase char
-        (?y (gif-extra-outfile-open-file file))
-        ((or ?r ?o)
-         (let* ((dir (gif-extra-read-directory
-                      "Move to directory: "))
-                (new-name (expand-file-name
-                           (read-string
-                            "New name: "
-                            (file-name-nondirectory file))
-                           dir)))
-           (if (not (file-exists-p new-name))
-               (progn (rename-file file new-name)
-                      (when (eq char ?o)
-                        (gif-extra-outfile-open-file new-name)))
-             (when (yes-or-no-p (format "%s exists. OK?" new-name))
-               (rename-file file new-name)
-               (when (eq char ?o)
-                 (gif-extra-outfile-open-file new-name))))))))))
+    (condition-case nil
+        (let ((char (car (read-multiple-choice
+                          (format "Open %s?"
+                                  file)
+                          '((?y "yes")
+                            (?r "rename")
+                            (?o "rename and open")
+                            (?n "no"))))))
+          (pcase char
+            (?y (gif-extra-outfile-open-file file))
+            ((or ?r ?o)
+             (let* ((dir (gif-extra-read-directory
+                          "Move to directory: "))
+                    (new-name (expand-file-name
+                               (read-string
+                                "New name: "
+                                (file-name-nondirectory file))
+                               dir)))
+               (if (not (file-exists-p new-name))
+                   (progn (rename-file file new-name)
+                          (when (eq char ?o)
+                            (gif-extra-outfile-open-file new-name)))
+                 (when (yes-or-no-p (format "%s exists. OK?" new-name))
+                   (rename-file file new-name)
+                   (when (eq char ?o)
+                     (gif-extra-outfile-open-file new-name))))))))
+      (error nil))))
+
+(defun gif-extra-timer-cancel ()
+  "Cancel `gif-extra-seconds-timer'."
+  (when (timerp gif-extra-seconds-timer)
+    (cancel-timer gif-extra-seconds-timer))
+  (setq gif-extra-seconds-timer nil))
+
+(defun gif-extra-increment-duration-seconds ()
+  "Increment `gif-extra-duration-seconds' and update modeline."
+  (setq gif-extra-duration-seconds (1+ gif-extra-duration-seconds))
+  (force-mode-line-update)
+  (gif-extra-timer-cancel)
+  (setq gif-extra-seconds-timer
+        (run-with-timer 1 nil 'gif-extra-increment-duration-seconds)))
+
+(defun gif-extra-timer-countdown-cancel ()
+  "Cancel `gif-extra-countdown-timer'."
+  (when (timerp gif-extra-countdown-timer)
+    (cancel-timer gif-extra-countdown-timer)
+    (setq gif-extra-countdown-timer nil)))
+
+
+(defun gif-extra-update-countdown ()
+  "Update countdown in mode-line."
+  (gif-extra-timer-countdown-cancel)
+  (gif-extra-timer-cancel)
+  (if (> gif-extra-countdown 0)
+      (progn
+        (setq gif-extra-countdown (1- gif-extra-countdown))
+        (force-mode-line-update)
+        (setq gif-extra-countdown-timer
+              (run-with-timer 1 nil 'gif-extra-update-countdown)))
+    (when (= gif-extra-countdown 0)
+      (setq gif-extra-duration-seconds 0)
+      (setq gif-extra-seconds-timer
+            (run-with-timer 1 nil 'gif-extra-increment-duration-seconds)))))
+
+(defconst gif-extra-mode-line-format '(:eval (gif-extra-mode-line-indicator)))
+
+(defsubst gif-extra-mode-line-indicator ()
+  "Return a string for the mode line with countdown or duration."
+  (when (or gif-extra-countdown gif-extra-duration-seconds)
+    (let ((sep (propertize " " 'face 'highlight))
+          (vsep (propertize " " 'face '(:inherit variable-pitch))))
+      (propertize (concat sep vsep
+                          (or
+                           (if (and gif-extra-countdown
+                                    (>
+                                     gif-extra-countdown
+                                     0))
+                               (format "▶ in %s"
+                                       gif-extra-countdown)
+                             (when (and gif-extra-duration-seconds
+                                        (>= gif-extra-duration-seconds 0))
+                               (format "● %s"
+                                       gif-extra-duration-seconds)))
+                           "")
+                          vsep sep)
+                  'face 'highlight))))
+
+(defvar gif-extra-capture-timer nil)
+
+;;;###autoload
+(defun gif-extra-screencast ()
+  "Start recording the GIF with mode-line indicator.
+A screenshot is taken every second and before every command."
+  (interactive)
+  (when (timerp gif-extra-capture-timer)
+    (cancel-timer gif-extra-capture-timer)
+    (setq gif-extra-capture-timer nil))
+  (gif-extra-timer-countdown-cancel)
+  (gif-extra-timer-cancel)
+  (if gif-screencast-mode
+      (progn (gif-screencast-stop)
+             (setq mode-line-format (remove gif-extra-mode-line-format
+                                            mode-line-format)))
+    (if (not (executable-find gif-screencast-program))
+        (message
+         "Screenshot program '%s' not found (See `gif-screencast-program')"
+         gif-screencast-program)
+      (dolist (d (list gif-screencast-output-directory
+                       gif-screencast-screenshot-directory))
+        (unless (file-exists-p d)
+          (make-directory d 'parents)))
+      (setq gif-screencast--frames '())
+      (setq gif-screencast--counter 0)
+      (gif-screencast-mode 1)
+      (when (and (listp mode-line-format)
+                 (not (member gif-extra-mode-line-format mode-line-format)))
+        (setq mode-line-format
+              (cons gif-extra-mode-line-format
+                    mode-line-format)))
+      (setq gif-extra-countdown gif-screencast-countdown)
+      (setq gif-extra-duration-seconds 0)
+      (gif-extra-update-countdown)
+      (when (> gif-screencast-gc-cons-threshold 0)
+        (setq gif-screencast--gc-cons-threshold-original gc-cons-threshold)
+        (setq gc-cons-threshold gif-screencast-gc-cons-threshold))
+      (setq gif-extra-capture-timer (run-with-timer gif-screencast-countdown 1
+                                                    #'gif-screencast-capture)))))
+
 
 
 ;;;###autoload
