@@ -342,7 +342,7 @@ A screenshot is taken every second and before every command."
 ;;;###autoload
 (define-minor-mode gif-extra-global-mode
   "Override `gif-screencast--generate-gif' to prompt directory and open file."
-  :lighter " gif-extra"
+  :lighter " gif+"
   :global t
   :group 'gif-screencast
   (advice-remove 'gif-screencast--generate-gif
