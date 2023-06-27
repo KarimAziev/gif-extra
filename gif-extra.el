@@ -213,13 +213,13 @@
         (let ((char (car (read-multiple-choice
                           (format "Open %s?"
                                   file)
-                          '((?y "yes")
+                          '((?o "yes")
                             (?r "rename")
-                            (?o "rename and open")
+                            (?R "rename and open")
                             (?n "no"))))))
           (pcase char
-            (?y (gif-extra-outfile-open-file file))
-            ((or ?r ?o)
+            (?o (gif-extra-outfile-open-file file))
+            ((or ?r ?R)
              (let* ((dir (gif-extra-read-directory
                           "Move to directory: "))
                     (new-name (expand-file-name
@@ -298,6 +298,22 @@
 
 (defvar gif-extra-capture-timer nil)
 
+(defun gif-extra-cleanup-mode-line ()
+  "Remove gif mode line."
+  (dolist (buff (buffer-list))
+    (when-let ((mline (buffer-local-value 'mode-line-format buff)))
+      (cond ((and (listp mline)
+                  (or
+                   (eq gif-extra-mode-line-format
+                       (car-safe
+                        gif-extra-mode-line-format))
+                   (memq gif-extra-mode-line-format mline)))
+             (with-current-buffer buff
+               (setq mode-line-format
+                     (remove gif-extra-mode-line-format
+                             mode-line-format)))))
+      buff)))
+
 ;;;###autoload
 (defun gif-extra-screencast ()
   "Start recording the GIF with mode-line indicator.
@@ -310,6 +326,7 @@ A screenshot is taken every second and before every command."
   (gif-extra-timer-cancel)
   (if gif-screencast-mode
       (progn (gif-screencast-stop)
+             (gif-extra-cleanup-mode-line)
              (setq mode-line-format (remove gif-extra-mode-line-format
                                             mode-line-format)))
     (if (not (executable-find gif-screencast-program))
