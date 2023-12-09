@@ -258,7 +258,7 @@
   (force-mode-line-update)
   (gif-extra-timer-cancel)
   (setq gif-extra-seconds-timer
-        (run-with-timer 1 nil 'gif-extra-increment-duration-seconds)))
+        (run-with-timer 1 nil #'gif-extra-increment-duration-seconds)))
 
 (defun gif-extra-timer-countdown-cancel ()
   "Cancel `gif-extra-countdown-timer'."
@@ -276,11 +276,11 @@
         (setq gif-extra-countdown (1- gif-extra-countdown))
         (force-mode-line-update)
         (setq gif-extra-countdown-timer
-              (run-with-timer 1 nil 'gif-extra-update-countdown)))
+              (run-with-timer 1 nil #'gif-extra-update-countdown)))
     (when (= gif-extra-countdown 0)
       (setq gif-extra-duration-seconds 0)
       (setq gif-extra-seconds-timer
-            (run-with-timer 1 nil 'gif-extra-increment-duration-seconds)))))
+            (run-with-timer 1 nil #'gif-extra-increment-duration-seconds)))))
 
 (defconst gif-extra-mode-line-format '(:eval (gif-extra-mode-line-indicator)))
 
