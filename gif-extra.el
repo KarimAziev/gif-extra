@@ -109,7 +109,7 @@
   (setq gif-extra-out-file
         (expand-file-name
          (if
-             (string-match-p "%[a-zZ-A]"
+             (string-match-p "%[a-z]"
                              gif-extra-outfile-base-name)
              (format-time-string
               gif-extra-outfile-base-name
@@ -130,7 +130,7 @@
               (setq gif-extra-out-file
                     (expand-file-name
                      (if
-                         (string-match-p "%[a-zZ-A]"
+                         (string-match-p "%[a-z]"
                                          gif-extra-outfile-base-name)
                          (format-time-string
                           gif-extra-outfile-base-name
@@ -140,15 +140,21 @@
                               gif-screencast-output-directory)
                          (gif-extra-read-directory
                           "Save output to directory: "))))))
-         (delays (cl-loop for (this-frame next-frame . _)
-                          on gif-screencast--frames
-                          by #'cdr ;; Converters delays are expressed in centiseconds.
-                          for delay = (when next-frame
-                                        (format "%d" (* 100 (float-time
-                                                             (time-subtract (gif-screencast-frame-timestamp next-frame)
-                                                                            (gif-screencast-frame-timestamp this-frame))))))
-                          when next-frame
-                          collect delay))
+         (delays
+          (cl-loop for (this-frame next-frame . _)
+                   on gif-screencast--frames
+                   by #'cdr ;; Converters delays are expressed in centiseconds.
+                   for delay =
+                   (when next-frame
+                     (format "%d"
+                             (* 100
+                                (float-time
+                                 (time-subtract (gif-screencast-frame-timestamp
+                                                 next-frame)
+                                                (gif-screencast-frame-timestamp
+                                                 this-frame))))))
+                   when next-frame
+                   collect delay))
          (delays (cons gif-screencast-first-delay delays))
          (files-args (cl-loop for frame in gif-screencast--frames
                               for delay in delays
@@ -166,9 +172,11 @@
                                             (when (and
                                                    gif-screencast-want-optimized
                                                    (eq (process-status
-                                                        process) 'exit)
+                                                        process)
+                                                       'exit)
                                                    (= (process-exit-status
-                                                       process) 0))
+                                                       process)
+                                                      0))
                                               (if gif-screencast-want-optimized
                                                   (gif-extra-screencast-optimize
                                                    output-filename)
@@ -177,9 +185,10 @@
                                             (when (and
                                                    gif-screencast-autoremove-screenshots
                                                    (eq (process-status
-                                                        process) 'exit)
-                                                   (= (process-exit-status
-                                                       process) 0))
+                                                        process)
+                                                       'exit)
+                                                   (zerop (process-exit-status
+                                                           process)))
                                               (dolist (f gif-screencast--frames)
                                                 (delete-file (gif-screencast-frame-filename
                                                               f))))))))
@@ -351,7 +360,7 @@ A screenshot is taken every second and before every command."
       (when (> gif-screencast-gc-cons-threshold 0)
         (setq gif-screencast--gc-cons-threshold-original gc-cons-threshold)
         (setq gc-cons-threshold gif-screencast-gc-cons-threshold))
-      (setq gif-extra-capture-timer (run-with-timer gif-screencast-countdown 1
+      (setq gif-extra-capture-timer (run-with-timer gif-screencast-countdown 0.3
                                                     #'gif-screencast-capture)))))
 
 
